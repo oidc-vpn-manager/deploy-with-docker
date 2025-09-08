@@ -1,0 +1,214 @@
+# OpenVPN Manager Production Deployment
+# This file is designed for production use with PostgreSQL databases
+# and proper security configurations
+
+volumes:
+  pki_volume:
+  postgres_data:
+  postgres_data_ct:
+
+networks:
+  frontend-net:
+    driver: bridge
+  backend-net:
+    driver: bridge
+  database-net:
+    driver: bridge
+
+services:
+  # Database services
+  postgres-frontend:
+    image: {{ .Values.postgresql.image.registry }}/{{ .Values.postgresql.image.repo }}:{{ .Values.postgresql.image.tag }}
+    restart: always
+    environment:
+      POSTGRES_DB: frontend_db
+      POSTGRES_USER: frontend_user
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_frontend_password
+      PGDATA: /var/lib/postgresql/data/pgdata
+    networks:
+      - database-net
+    volumes:
+      - postgres_data:/var/lib/postgresql/data/pgdata
+    secrets:
+      - postgres_frontend_password
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -d frontend_db -U frontend_user"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  postgres-certtransparency:
+    image: {{ .Values.postgresql.image.registry }}/{{ .Values.postgresql.image.repo }}:{{ .Values.postgresql.image.tag }}
+    restart: always
+    environment:
+      POSTGRES_DB: ct_db
+      POSTGRES_USER: ct_user
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_ct_password
+      PGDATA: /var/lib/postgresql/data/pgdata
+    networks:
+      - database-net
+    volumes:
+      - postgres_data_ct:/var/lib/postgresql/data/pgdata
+    secrets:
+      - postgres_ct_password
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -d ct_db -U ct_user"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+
+  # PKI initialization
+  signing-init:
+    image: ghcr.io/openvpn-manager/signing:latest
+    command: ./import_pki.sh
+    user: root
+    volumes:
+      - ./pki:/pki_source:ro
+      - pki_volume:/pki_target
+    environment:
+      SOURCE_CERT_PATH: /pki_source/intermediate-ca.crt
+      SOURCE_KEY_PATH: /pki_source/intermediate-ca.key
+      TARGET_CERT_PATH: /pki_target/intermediate-ca.crt
+      TARGET_KEY_PATH: /pki_target/intermediate-ca.key
+      TARGET_UID: 1001
+      TARGET_GID: 1001
+    restart: "no"
+
+  # Database migrations
+  certtransparency-migrate:
+    image: ghcr.io/openvpn-manager/certtransparency:latest
+    env_file:
+      - .env.certtransparency
+    networks:
+      - database-net
+    command: ./run_migrate.sh
+    depends_on:
+      postgres-certtransparency:
+        condition: service_healthy
+    restart: "no"
+
+  frontend-migrate:
+    image: ghcr.io/openvpn-manager/frontend:latest
+    env_file:
+      - .env.frontend
+    networks:
+      - database-net
+    volumes:
+      - ./openvpn_templates:/app/openvpn_templates:ro
+      - ./server_templates:/app/server_templates:ro
+      - ./openvpn_options.yaml:/app/openvpn_options.yaml:ro
+      - ./pki:/app/pki:ro
+    environment:
+      - OVPN_TEMPLATE_PATH=/app/openvpn_templates
+      - SERVER_TEMPLATES_DIR=/app/server_templates
+      - OVPN_OPTIONS_PATH=/app/openvpn_options.yaml
+      - ROOT_CA_CERTIFICATE_FILE=/app/pki/root-ca.crt
+      - INTERMEDIATE_CA_CERTIFICATE_FILE=/app/pki/intermediate-ca.crt
+    command: ./run_migrate.sh
+    depends_on:
+      postgres-frontend:
+        condition: service_healthy
+    restart: "no"
+
+
+  # Application services
+  certtransparency:
+    image: ghcr.io/openvpn-manager/certtransparency:latest
+    env_file:
+      - .env.certtransparency
+    restart: unless-stopped
+    expose:
+      - 8800
+    networks:
+      - backend-net
+      - database-net
+    depends_on:
+      certtransparency-migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8800/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  signing:
+    image: ghcr.io/openvpn-manager/signing:latest
+    env_file:
+      - .env.signing
+    restart: unless-stopped
+    expose:
+      - 8500
+    networks:
+      - backend-net
+    volumes:
+      - pki_volume:/pki:ro
+    depends_on:
+      signing-init:
+        condition: service_completed_successfully
+      certtransparency:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8500/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+
+  frontend:
+    image: ghcr.io/openvpn-manager/frontend:latest
+    env_file:
+      - .env.frontend
+    restart: unless-stopped
+    ports:
+      - "80:8600"
+    networks:
+      - frontend-net
+      - backend-net
+      - database-net
+    volumes:
+      - ./openvpn_templates:/app/openvpn_templates:ro
+      - ./server_templates:/app/server_templates:ro
+      - ./openvpn_options.yaml:/app/openvpn_options.yaml:ro
+      - ./pki:/app/pki:ro
+    environment:
+      - OVPN_TEMPLATE_PATH=/app/openvpn_templates
+      - SERVER_TEMPLATES_DIR=/app/server_templates
+      - OVPN_OPTIONS_PATH=/app/openvpn_options.yaml
+      - ROOT_CA_CERTIFICATE_FILE=/app/pki/root-ca.crt
+      - INTERMEDIATE_CA_CERTIFICATE_FILE=/app/pki/intermediate-ca.crt
+    depends_on:
+      frontend-migrate:
+        condition: service_completed_successfully
+      signing:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8600/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # Reverse proxy for production
+  nginx:
+    image: nginx:alpine
+    restart: unless-stopped
+    ports:
+      - "443:443"
+    networks:
+      - frontend-net
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - frontend
+
+secrets:
+  postgres_frontend_password:
+    file: ./secrets/postgres_frontend_password
+  postgres_ct_password:
+    file: ./secrets/postgres_ct_password

@@ -1,0 +1,35 @@
+# Docker Compose Override Example
+# Copy this file to docker-compose.override.yml and customize as needed
+# This file will be automatically loaded by docker-compose
+
+version: '3.8'
+
+services:
+  # Example: Add development overrides
+  frontend:
+    environment:
+      - LOG_LEVEL=DEBUG
+    volumes:
+      - ./logs:/app/logs  # Mount local logs directory
+
+  # Example: Expose additional ports for debugging
+  signing:
+    ports:
+      - "8500:8500"  # Expose signing service port
+    
+  certtransparency:
+    ports:
+      - "8800:8800"  # Expose CT service port
+
+  # Example: Add external monitoring
+  postgres-frontend:
+    ports:
+      - "5432:5432"  # Expose for external monitoring (use with caution)
+
+  # Example: Custom nginx configuration
+  nginx:
+    volumes:
+      - ./custom-nginx.conf:/etc/nginx/nginx.conf:ro  # Use custom config
+    ports:
+      - "8080:80"   # Additional HTTP port
+      - "8443:443"  # Alternative HTTPS port

@@ -1,0 +1,20 @@
+# Ignore sensitive files and directories
+secrets/
+ssl/
+pki/
+*.key
+*.pem
+*.crt
+
+# Ignore environment-specific files
+.env.local
+.env.production.local
+
+# Ignore data directories
+postgres_data/
+logs/
+
+# Ignore backup files
+*.backup
+*.bak
+*.tmp
