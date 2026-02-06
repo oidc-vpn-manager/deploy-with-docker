@@ -62,7 +62,7 @@ services:
 
   # PKI initialization
   signing-init:
-    image: ghcr.io/openvpn-manager/signing:latest
+    image: ghcr.io/oidc-vpn-manager/signing:latest
     command: ./import_pki.sh
     user: root
     volumes:
@@ -79,7 +79,7 @@ services:
 
   # Database migrations
   certtransparency-migrate:
-    image: ghcr.io/openvpn-manager/certtransparency:latest
+    image: ghcr.io/oidc-vpn-manager/certtransparency:latest
     env_file:
       - .env.certtransparency
     networks:
@@ -91,7 +91,7 @@ services:
     restart: "no"
 
   frontend-migrate:
-    image: ghcr.io/openvpn-manager/frontend:latest
+    image: ghcr.io/oidc-vpn-manager/frontend:latest
     env_file:
       - .env.frontend
     networks:
@@ -116,7 +116,7 @@ services:
 
   # Application services
   certtransparency:
-    image: ghcr.io/openvpn-manager/certtransparency:latest
+    image: ghcr.io/oidc-vpn-manager/certtransparency:latest
     env_file:
       - .env.certtransparency
     restart: unless-stopped
@@ -136,7 +136,7 @@ services:
       start_period: 30s
 
   signing:
-    image: ghcr.io/openvpn-manager/signing:latest
+    image: ghcr.io/oidc-vpn-manager/signing:latest
     env_file:
       - .env.signing
     restart: unless-stopped
@@ -160,7 +160,7 @@ services:
 
 
   frontend:
-    image: ghcr.io/openvpn-manager/frontend:latest
+    image: ghcr.io/oidc-vpn-manager/frontend:latest
     env_file:
       - .env.frontend
     restart: unless-stopped
