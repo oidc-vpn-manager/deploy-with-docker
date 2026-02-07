@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
-# Generate secure secrets for OpenVPN Manager production deployment
+# Generate secure secrets for OIDC VPN Manager production deployment
 # This script should be run once during initial setup
 
 SECRETS_DIR="./secrets"
@@ -21,7 +21,7 @@ generate_password() {
     openssl rand -base64 $length | tr -d '\n' | head -c $length
 }
 
-echo "Generating production secrets for OpenVPN Manager..."
+echo "Generating production secrets for OIDC VPN Manager..."
 
 # Database passwords
 echo "$(generate_password 32)" > "$SECRETS_DIR/postgres_frontend_password"

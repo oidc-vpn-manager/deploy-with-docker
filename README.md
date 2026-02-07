@@ -1,6 +1,6 @@
-# OpenVPN Manager Production Deployment
+# OIDC VPN Manager Production Deployment
 
-This directory contains the production deployment configuration for OpenVPN Manager using Docker Compose with PostgreSQL databases and proper security configurations.
+This directory contains the production deployment configuration for OIDC VPN Manager using Docker Compose with PostgreSQL databases and proper security configurations.
 
 ## 📦 Service Configuration
 

@@ -1,4 +1,4 @@
-# OpenVPN Manager Production Deployment
+# OIDC VPN Manager Production Deployment
 # This file is designed for production use with PostgreSQL databases
 # and proper security configurations
 
