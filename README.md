@@ -140,7 +140,6 @@ Update these in the respective `.env.*` files:
 
 - `OIDC_DISCOVERY_URL`: Your OIDC provider's discovery endpoint
 - `OIDC_CLIENT_ID`: Client ID from your OIDC provider  
-- `OPENVPN_SERVER_HOSTNAME`: Your OpenVPN server hostname
 - `FRONTEND_SERVICE_URL`: Your public-facing URL
 
 ### SSL Certificates
